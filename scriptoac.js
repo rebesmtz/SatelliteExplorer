@@ -987,7 +987,7 @@ function updateSummaryStats(outputAreas) {
     const summaryText = `
       <p>Total Output Areas: ${totalOAs}</p>
       <p>Intersecting Output Areas: ${intersectingOAsCount}</p>
-      <p>Total Population: ${totalPopulation}</p>
+      <p>Total Population: ${totalEthnicity}</p>
       <p>Average Age: ${weightedAverageAgeMean.toFixed(2)}</p>
       <p>Average Deprivation: ${weightedAverageDeprivationMean.toFixed(2)}</p>
       <p>Average Cars: ${weightedAverageCarsMean.toFixed(2)}</p>
