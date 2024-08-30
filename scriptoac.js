@@ -8,6 +8,9 @@ let censusFeatures = null;
 let isIsochroneVisible = true;
 let areOutputAreasVisible = true;
 
+let selectedOAList = ''; // Declare this at the top of your script, outside any function
+
+
 const supergroupColors = {
   "Multicultural Metropolitans": "#E9730C",
   "Ethnicity Central": "#F755C9",
@@ -50,7 +53,6 @@ function toggleOutputAreas() {
 // Add these event listeners after the map is initialized
 document.getElementById('isochrone-toggle').addEventListener('change', toggleIsochrone);
 document.getElementById('output-areas-toggle').addEventListener('change', toggleOutputAreas);
-
 
 
 
@@ -688,54 +690,91 @@ function addLegend(uniqueSupergroups, colorScale) {
   });
 }
 
+// Format treemap data function
+ 
+function formatTreemapData(data) {
+  let formattedData = '';
+  for (const key in data) {
+    if (data.hasOwnProperty(key)) {
+      formattedData += `${key}: ${data[key].value}\n`;
+      if (data[key].children) {
+        for (const childKey in data[key].children) {
+          if (data[key].children.hasOwnProperty(childKey)) {
+            formattedData += `  ${childKey}: ${data[key].children[childKey].value}\n`;
+          }
+        }
+      }
+    }
+  }
+  return formattedData;
+}
+
+
+// generate treemap data
+
 function generateTreemapData(outputAreas) {
+  console.log('Generating treemap data...');
+  
+  // Get the OA codes from the output areas
   const intersectingOAs = outputAreas.features.map(feature => feature.properties.OA21CD);
+  
+  // Filter the census features to only include those in the intersecting output areas
   const filteredFeatures = censusFeatures.filter(feature => intersectingOAs.includes(feature.geography));
 
+  // Initialize the treemap data structure
   const treemapData = {
-      name: "All",
-      children: []
+    name: "All",
+    children: []
   };
 
+  // Create a map to store the hierarchical structure
   const supergroupMap = new Map();
 
+  // Iterate through the filtered features to build the hierarchical structure
   filteredFeatures.forEach(feature => {
-      const supergroup = feature['Supergroup Name'] || 'Unknown Supergroup';
-      const group = feature['Group Name'] || 'Unknown Group';
-      const subgroup = feature['Subgroup Name'] || 'Unknown Subgroup';
-      const value = 1; // You can change this to a specific value if needed
+    const supergroup = feature['Supergroup Name'] || 'Unknown Supergroup';
+    const group = feature['Group Name'] || 'Unknown Group';
+    const subgroup = feature['Subgroup Name'] || 'Unknown Subgroup';
 
-      if (!supergroupMap.has(supergroup)) {
-          supergroupMap.set(supergroup, new Map());
-      }
-      const groupMap = supergroupMap.get(supergroup);
+    // Initialize supergroup if it doesn't exist
+    if (!supergroupMap.has(supergroup)) {
+      supergroupMap.set(supergroup, new Map());
+    }
+    const groupMap = supergroupMap.get(supergroup);
 
-      if (!groupMap.has(group)) {
-          groupMap.set(group, new Map());
-      }
-      const subgroupMap = groupMap.get(group);
+    // Initialize group if it doesn't exist
+    if (!groupMap.has(group)) {
+      groupMap.set(group, new Map());
+    }
+    const subgroupMap = groupMap.get(group);
 
-      if (!subgroupMap.has(subgroup)) {
-          subgroupMap.set(subgroup, 0);
-      }
-      subgroupMap.set(subgroup, subgroupMap.get(subgroup) + value);
+    // Initialize subgroup count if it doesn't exist
+    if (!subgroupMap.has(subgroup)) {
+      subgroupMap.set(subgroup, 0);
+    }
+    
+    // Increment the count for this subgroup
+    subgroupMap.set(subgroup, subgroupMap.get(subgroup) + 1);
   });
 
+  // Convert the map structure to the required treemap data format
   supergroupMap.forEach((groupMap, supergroup) => {
-      const supergroupNode = { name: supergroup, children: [] };
-      groupMap.forEach((subgroupMap, group) => {
-          const groupNode = { name: group, children: [] };
-          subgroupMap.forEach((value, subgroup) => {
-              groupNode.children.push({ name: subgroup, value: value });
-          });
-          supergroupNode.children.push(groupNode);
+    const supergroupNode = { name: supergroup, children: [] };
+    groupMap.forEach((subgroupMap, group) => {
+      const groupNode = { name: group, children: [] };
+      subgroupMap.forEach((count, subgroup) => {
+        groupNode.children.push({ name: subgroup, value: count });
       });
-      treemapData.children.push(supergroupNode);
+      supergroupNode.children.push(groupNode);
+    });
+    treemapData.children.push(supergroupNode);
   });
 
-  console.log('Generated treemap data:', treemapData);
+  console.log('Treemap data generated:', treemapData);
   return treemapData;
 }
+
+
 
 function createTreemap(data) {
   console.log('Input data:', data);
@@ -897,136 +936,246 @@ function getContrastColor(hexcolor) {
   return (yiq >= 128) ? 'black' : 'white';
 }
 
+
 function updateSummaryStats(outputAreas) {
+  console.log('updateSummaryStats called with:', outputAreas);
   const summaryStats = document.getElementById('summary-stats');
   summaryStats.innerHTML = '';
 
-  const intersectingOAs = outputAreas.features.map(feature => feature.properties.OA21CD);
+  // Get isochrone information
+  const isochroneType = document.getElementById('isochrone-type').value;
+  const isochroneValue = document.getElementById('isochrone-value').value;
+  const postcode = document.getElementById('search-input').value;
+
+  if (!outputAreas || !outputAreas.features || !Array.isArray(outputAreas.features)) {
+    console.error('Invalid outputAreas data:', outputAreas);
+    summaryStats.innerHTML = '<p>Error: Invalid data received. Please try again.</p>';
+    return;
+  }
+
+  const intersectingOAs = outputAreas.features.map(feature => feature.properties?.OA21CD).filter(Boolean);
   const filteredFeatures = censusFeatures.filter(feature => intersectingOAs.includes(feature.geography));
 
   const totalOAs = outputAreas.features.length;
   const intersectingOAsCount = filteredFeatures.length;
 
+  let summaryText = '';
+  let oaList = ''; // New variable to store the list of output areas
+
   if (filteredFeatures.length > 0) {
-    const weightedAverageAgeSum = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Weighted_Average_Age'] || 0), 0);
-    const weightedAverageAgeMean = weightedAverageAgeSum / filteredFeatures.length;
+    try {
+      console.log('Calculating statistics...');
 
-    const weightedAverageDeprivationSum = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Weighted_Average_Deprivation'] || 0), 0);
-    const weightedAverageDeprivationMean = weightedAverageDeprivationSum / filteredFeatures.length;
+      // Age, Deprivation, and Cars
+      const weightedAverageAgeSum = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Weighted_Average_Age'] || 0), 0);
+      const weightedAverageAgeMean = weightedAverageAgeSum / filteredFeatures.length;
 
-    const weightedAverageCarsSum = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Weighted_Average_Cars'] || 0), 0);
-    const weightedAverageCarsMean = weightedAverageCarsSum / filteredFeatures.length;
+      const weightedAverageDeprivationSum = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Weighted_Average_Deprivation'] || 0), 0);
+      const weightedAverageDeprivationMean = weightedAverageDeprivationSum / filteredFeatures.length;
 
-    const sumByEthnicity = {
-      'White': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|White'] || 0), 0),
-      'Asian': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|Asian|Asian.British.or.Asian.Welsh'] || 0), 0),
-      'Black': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|Black|Black.British|Black.Welsh|Caribbean.or.African'] || 0), 0)
-    };
+      const weightedAverageCarsSum = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Weighted_Average_Cars'] || 0), 0);
+      const weightedAverageCarsMean = weightedAverageCarsSum / filteredFeatures.length;
 
-    const sumByHousingType = {
-      'Detached': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Detached'] || 0), 0),
-      'Semi-detached': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Semi.detached'] || 0), 0),
-      'Terraced': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Terraced'] || 0), 0)
-    };
+      // Ethnicity
+      const sumByEthnicity = {
+        'White': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|White'] || 0), 0),
+        'Asian': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|Asian|Asian.British.or.Asian.Welsh'] || 0), 0),
+        'Black': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|Black|Black.British|Black.Welsh|Caribbean.or.African'] || 0), 0)
+      };
 
-    const totalEthnicity = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|Total|All.usual.residents'] || 0), 0);
-    const totalHousingType = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Total|All.households'] || 0), 0);
+      const totalEthnicity = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|Total|All.usual.residents'] || 0), 0);
 
-    const percentageByEthnicity = {
-      'White': ((sumByEthnicity['White'] / totalEthnicity) * 100).toFixed(2),
-      'Asian': ((sumByEthnicity['Asian'] / totalEthnicity) * 100).toFixed(2),
-      'Black': ((sumByEthnicity['Black'] / totalEthnicity) * 100).toFixed(2)
-    };
+      const percentageByEthnicity = {
+        'White': ((sumByEthnicity['White'] / totalEthnicity) * 100).toFixed(2),
+        'Asian': ((sumByEthnicity['Asian'] / totalEthnicity) * 100).toFixed(2),
+        'Black': ((sumByEthnicity['Black'] / totalEthnicity) * 100).toFixed(2)
+      };
 
-    const percentageByHousingType = {
-      'Detached': ((sumByHousingType['Detached'] / totalHousingType) * 100).toFixed(2),
-      'Semi-detached': ((sumByHousingType['Semi-detached'] / totalHousingType) * 100).toFixed(2),
-      'Terraced': ((sumByHousingType['Terraced'] / totalHousingType) * 100).toFixed(2)
-    };
+      // Housing Type
+      const sumByHousingType = {
+        'Detached': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Detached'] || 0), 0),
+        'Semi-detached': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Semi.detached'] || 0), 0),
+        'Terraced': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Terraced'] || 0), 0)
+      };
 
-    const sumByTenure = {
-      'Owned': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Owned'] || 0), 0),
-      'Social Rented': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Social.rented'] || 0), 0),
-      'Private Rented': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Private.rented'] || 0), 0),
-      'Lives Rent Free': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Lives.rent.free'] || 0), 0)
-    };
+      const totalHousingType = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Total|All.households'] || 0), 0);
 
-    const sumByTravelToWork = {
-      'Driving a Car or Van': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Method.of.travel.to.workplace|Driving.a.car.or.van'] || 0), 0),
-      'Work Mainly at or from Home': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Method.of.travel.to.workplace|Work.mainly.at.or.from.home'] || 0), 0)
-    };
+      const percentageByHousingType = {
+        'Detached': ((sumByHousingType['Detached'] / totalHousingType) * 100).toFixed(2),
+        'Semi-detached': ((sumByHousingType['Semi-detached'] / totalHousingType) * 100).toFixed(2),
+        'Terraced': ((sumByHousingType['Terraced'] / totalHousingType) * 100).toFixed(2)
+      };
 
-    const sumByQualification = {
-      'No Qualifications': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|No.qualifications'] || 0), 0),
-      'Level 4 Qualifications and Above': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|Level.4.qualifications.and.above'] || 0), 0)
-    };
+      // Tenure
+      const sumByTenure = {
+        'Owned': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Owned'] || 0), 0),
+        'Social Rented': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Social.rented'] || 0), 0),
+        'Private Rented': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Private.rented'] || 0), 0),
+        'Lives Rent Free': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Lives.rent.free'] || 0), 0)
+      };
 
-    const totalTenure = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Total|All.households'] || 0), 0);
-    const totalTravelToWork = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Method.of.travel.to.workplace|Total|All.usual.residents.aged.16.years.and.over.in.employment.the.week.before.the.census'] || 0), 0);
-    const totalQualification = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|Total|All.usual.residents.aged.16.years.and.over'] || 0), 0);
+      const totalTenure = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Total|All.households'] || 0), 0);
 
-    const totalPopulation = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|Total|All.usual.residents.aged.16.years.and.over'] || 0), 0);
+      const percentageByTenure = {
+        'Owned': ((sumByTenure['Owned'] / totalTenure) * 100).toFixed(2),
+        'Social Rented': ((sumByTenure['Social Rented'] / totalTenure) * 100).toFixed(2),
+        'Private Rented': ((sumByTenure['Private Rented'] / totalTenure) * 100).toFixed(2),
+        'Lives Rent Free': ((sumByTenure['Lives Rent Free'] / totalTenure) * 100).toFixed(2)
+      };
 
-    const percentageByTenure = {
-      'Owned': ((sumByTenure['Owned'] / totalTenure) * 100).toFixed(2),
-      'Social Rented': ((sumByTenure['Social Rented'] / totalTenure) * 100).toFixed(2),
-      'Private Rented': ((sumByTenure['Private Rented'] / totalTenure) * 100).toFixed(2),
-      'Lives Rent Free': ((sumByTenure['Lives Rent Free'] / totalTenure) * 100).toFixed(2)
-    };
+      // Travel to Work
+      const sumByTravelToWork = {
+        'Driving a Car or Van': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Method.of.travel.to.workplace|Driving.a.car.or.van'] || 0), 0),
+        'Work Mainly at or from Home': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Method.of.travel.to.workplace|Work.mainly.at.or.from.home'] || 0), 0)
+      };
 
-    const percentageByTravelToWork = {
-      'Driving a Car or Van': ((sumByTravelToWork['Driving a Car or Van'] / totalTravelToWork) * 100).toFixed(2),
-      'Work Mainly at or from Home': ((sumByTravelToWork['Work Mainly at or from Home'] / totalTravelToWork) * 100).toFixed(2)
-    };
+      const totalTravelToWork = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Method.of.travel.to.workplace|Total|All.usual.residents.aged.16.years.and.over.in.employment.the.week.before.the.census'] || 0), 0);
 
-    const percentageByQualification = {
-      'No Qualifications': ((sumByQualification['No Qualifications'] / totalQualification) * 100).toFixed(2),
-      'Level 4 Qualifications and Above': ((sumByQualification['Level 4 Qualifications and Above'] / totalQualification) * 100).toFixed(2)
-    };
+      const percentageByTravelToWork = {
+        'Driving a Car or Van': ((sumByTravelToWork['Driving a Car or Van'] / totalTravelToWork) * 100).toFixed(2),
+        'Work Mainly at or from Home': ((sumByTravelToWork['Work Mainly at or from Home'] / totalTravelToWork) * 100).toFixed(2)
+      };
 
-    const summaryText = `
+      // Qualifications
+      const sumByQualification = {
+        'No Qualifications': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|No.qualifications'] || 0), 0),
+        'Level 4 Qualifications and Above': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|Level.4.qualifications.and.above'] || 0), 0)
+      };
+
+      const totalQualification = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|Total|All.usual.residents.aged.16.years.and.over'] || 0), 0);
+
+      const percentageByQualification = {
+        'No Qualifications': ((sumByQualification['No Qualifications'] / totalQualification) * 100).toFixed(2),
+        'Level 4 Qualifications and Above': ((sumByQualification['Level 4 Qualifications and Above'] / totalQualification) * 100).toFixed(2)
+      };
+
+      console.log('Statistics calculated successfully');
+
+      // Generate treemap data
+      console.log('Generating treemap data...');
+      const treemapData = generateTreemapData(outputAreas);
+      const readableTreemapData = formatTreemapDataReadable(treemapData);
+      console.log('Treemap data generated successfully');
+
+      summaryText = `
+        <p>Total Output Areas: ${totalOAs}</p>
+        <p>Intersecting Output Areas: ${intersectingOAsCount}</p>
+        <p>Total Population: ${totalEthnicity}</p>
+        <p>Average Age: ${weightedAverageAgeMean.toFixed(2)}</p>
+        <p>Average Deprivation: ${weightedAverageDeprivationMean.toFixed(2)}</p>
+        <p>Average Cars: ${weightedAverageCarsMean.toFixed(2)}</p>
+        <h3>Ethnicity</h3>
+        <ul>
+          <li>White: ${sumByEthnicity['White']} (${percentageByEthnicity['White']}%)</li>
+          <li>Asian: ${sumByEthnicity['Asian']} (${percentageByEthnicity['Asian']}%)</li>
+          <li>Black: ${sumByEthnicity['Black']} (${percentageByEthnicity['Black']}%)</li>
+        </ul>
+        <h3>Housing Type</h3>
+        <ul>
+          <li>Detached: ${sumByHousingType['Detached']} (${percentageByHousingType['Detached']}%)</li>
+          <li>Semi-detached: ${sumByHousingType['Semi-detached']} (${percentageByHousingType['Semi-detached']}%)</li>
+          <li>Terraced: ${sumByHousingType['Terraced']} (${percentageByHousingType['Terraced']}%)</li>
+        </ul>
+        <h3>Tenure</h3>
+        <ul>
+          <li>Owned: ${sumByTenure['Owned']} (${percentageByTenure['Owned']}%)</li>
+          <li>Social Rented: ${sumByTenure['Social Rented']} (${percentageByTenure['Social Rented']}%)</li>
+          <li>Private Rented: ${sumByTenure['Private Rented']} (${percentageByTenure['Private Rented']}%)</li>
+          <li>Lives Rent Free: ${sumByTenure['Lives Rent Free']} (${percentageByTenure['Lives Rent Free']}%)</li>
+        </ul>
+        <h3>Travel to Work</h3>
+        <ul>
+          <li>Driving: ${sumByTravelToWork['Driving a Car or Van']} (${percentageByTravelToWork['Driving a Car or Van']}%)</li>
+          <li>Work from Home: ${sumByTravelToWork['Work Mainly at or from Home']} (${percentageByTravelToWork['Work Mainly at or from Home']}%)</li>
+        </ul>
+        <h3>Qualifications</h3>
+        <ul>
+          <li>No Qualifications: ${sumByQualification['No Qualifications']} (${percentageByQualification['No Qualifications']}%)</li>
+          <li>Level 4 Qualifications and Above: ${sumByQualification['Level 4 Qualifications and Above']} (${percentageByQualification['Level 4 Qualifications and Above']}%)</li>
+        </ul>
+        <h3>Treemap Data:</h3>
+        <pre>${readableTreemapData}</pre>
+      `;
+
+        // Create the list of output areas
+        oaList = intersectingOAs.join(', ');
+
+        console.log('Summary text generated successfully');
+
+
+
+  
+      // Update the treemap visualization
+      createTreemap(treemapData);
+    } catch (error) {
+      console.error('Error calculating summary stats:', error);
+      summaryText = `<p>An error occurred while calculating summary statistics: ${error.message}. Please try again.</p>`;
+    }
+  } else {
+    summaryText = `
       <p>Total Output Areas: ${totalOAs}</p>
-      <p>Intersecting Output Areas: ${intersectingOAsCount}</p>
-      <p>Total Population: ${totalEthnicity}</p>
-      <p>Average Age: ${weightedAverageAgeMean.toFixed(2)}</p>
-      <p>Average Deprivation: ${weightedAverageDeprivationMean.toFixed(2)}</p>
-      <p>Average Cars: ${weightedAverageCarsMean.toFixed(2)}</p>
-      <h3>Ethnicity</h3>
-      <ul>
-        <li>White: ${sumByEthnicity['White']} (${percentageByEthnicity['White']}%)</li>
-        <li>Asian: ${sumByEthnicity['Asian']} (${percentageByEthnicity['Asian']}%)</li>
-        <li>Black: ${sumByEthnicity['Black']} (${percentageByEthnicity['Black']}%)</li>
-      </ul>
-      <h3>Housing Type</h3>
-      <ul>
-        <li>Detached: ${sumByHousingType['Detached']} (${percentageByHousingType['Detached']}%)</li>
-        <li>Semi-detached: ${sumByHousingType['Semi-detached']} (${percentageByHousingType['Semi-detached']}%)</li>
-        <li>Terraced: ${sumByHousingType['Terraced']} (${percentageByHousingType['Terraced']}%)</li>
-      </ul>
-      <h3>Tenure</h3>
-      <ul>
-        <li>Owned: ${sumByTenure['Owned']} (${percentageByTenure['Owned']}%)</li>
-        <li>Social Rented: ${sumByTenure['Social Rented']} (${percentageByTenure['Social Rented']}%)</li>
-        <li>Private Rented: ${sumByTenure['Private Rented']} (${percentageByTenure['Private Rented']}%)</li>
-        <li>Lives Rent Free: ${sumByTenure['Lives Rent Free']} (${percentageByTenure['Lives Rent Free']}%)</li>
-      </ul>
-      <h3>Travel to Work</h3>
-      <ul>
-        <li>Driving: ${sumByTravelToWork['Driving a Car or Van']} (${percentageByTravelToWork['Driving a Car or Van']}%)</li>
-        <li>Work from Home: ${sumByTravelToWork['Work Mainly at or from Home']} (${percentageByTravelToWork['Work Mainly at or from Home']}%)</li>
-      </ul>
-      <h3>Qualifications</h3>
-      <ul>
-        <li>No Qualifications: ${sumByQualification['No Qualifications']} (${percentageByQualification['No Qualifications']}%)</li>
-        <li>Level 4 Qualifications and Above: ${sumByQualification['Level 4 Qualifications and Above']} (${percentageByQualification['Level 4 Qualifications and Above']}%)</li>
-      </ul>
+      <p>No intersecting output areas found.</p>
+    `;
+  }
+
+  summaryStats.innerHTML = summaryText;
+
+  const exportButton = document.getElementById('export-button');
+  exportButton.removeEventListener('click', exportSummaryStats);
+  exportButton.addEventListener('click', () => exportSummaryStats(summaryText, isochroneType, isochroneValue, postcode, oaList));
+}
+
+
+function exportSummaryStats(summaryText, isochroneType, isochroneValue, postcode, oaList) {
+  try {
+    const exportWindow = window.open('', '_blank');
+    if (!exportWindow) {
+      throw new Error('Popup blocked. Please allow popups for this site.');
+    }
+
+    const isochroneInfo = `
+      <h2>Isochrone Information</h2>
+      <p>Postcode: ${postcode}</p>
+      <p>Isochrone Type: ${isochroneType}</p>
+      <p>Isochrone Value: ${isochroneValue} ${isochroneType === 'time' ? 'minutes' : 'miles'}</p>
     `;
 
-    summaryStats.innerHTML = summaryText;
-    } else {
-      summaryStats.innerHTML = `
-        <p>Total Output Areas: ${totalOAs}</p>
-        <p>No intersecting output areas found.</p>
-      `;
-    }
+    const outputAreasList = `
+      <h2>List of Output Areas</h2>
+      <p>${oaList}</p>
+    `;
+
+    exportWindow.document.write('<html><head><title>Exported Summary Stats</title></head><body>');
+    exportWindow.document.write(isochroneInfo);
+    exportWindow.document.write(summaryText);
+    exportWindow.document.write(outputAreasList);
+    exportWindow.document.write('</body></html>');
+    exportWindow.document.close();
+  } catch (error) {
+    console.error('Error exporting summary stats:', error);
+    alert('Failed to export summary stats. ' + error.message);
   }
+}
+
+
+function formatTreemapDataReadable(data, indent = '') {
+  let result = '';
+  if (data.name === 'All') {
+    data.children.forEach(supergroup => {
+      result += formatTreemapDataReadable(supergroup, indent);
+    });
+  } else if (data.children) {
+    result += `${indent}${data.name}:\n`;
+    data.children.forEach(child => {
+      result += formatTreemapDataReadable(child, indent + '  ');
+    });
+  } else {
+    result += `${indent}${data.name}: ${data.value}\n`;
+  }
+  return result;
+}
+
+function generateOAList(outputAreas) {
+  const oaList = outputAreas.features.map(feature => feature.properties.OA21CD);
+  return oaList.join('\n');
+}
