@@ -980,30 +980,42 @@ function updateSummaryStats(outputAreas) {
       const sumByEthnicity = {
         'White': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|White'] || 0), 0),
         'Asian': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|Asian|Asian.British.or.Asian.Welsh'] || 0), 0),
-        'Black': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|Black|Black.British|Black.Welsh|Caribbean.or.African'] || 0), 0)
+        'Black': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|Black|Black.British|Black.Welsh|Caribbean.or.African'] || 0), 0),
+      // Add the missing categories (here's where the error is likely happening) - delete if source won't be available
+        'Mixed': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|Mixed.or.Multiple.ethnic.groups'] || 0), 0),
+        'Other': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|Other.ethnic.group'] || 0), 0)
       };
+      
 
       const totalEthnicity = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|Total|All.usual.residents'] || 0), 0);
 
       const percentageByEthnicity = {
         'White': ((sumByEthnicity['White'] / totalEthnicity) * 100).toFixed(2),
         'Asian': ((sumByEthnicity['Asian'] / totalEthnicity) * 100).toFixed(2),
-        'Black': ((sumByEthnicity['Black'] / totalEthnicity) * 100).toFixed(2)
+        'Black': ((sumByEthnicity['Black'] / totalEthnicity) * 100).toFixed(2),
+        'Mixed': ((sumByEthnicity['Mixed'] / totalEthnicity) * 100).toFixed(2), 
+        'Other': ((sumByEthnicity['Other'] / totalEthnicity) * 100).toFixed(2)
       };
 
       // Housing Type
       const sumByHousingType = {
         'Detached': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Detached'] || 0), 0),
         'Semi-detached': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Semi.detached'] || 0), 0),
-        'Terraced': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Terraced'] || 0), 0)
+        'Terraced': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Terraced'] || 0), 0),
+      // Add the missing categories
+        'Flat': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Flat|maisonette.or.apartment'] || 0), 0),
+        'Caravan': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Caravan.or.other.mobile.or.temporary.structure'] || 0), 0)
       };
 
       const totalHousingType = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Total|All.households'] || 0), 0);
 
+    // Calculate percentages
       const percentageByHousingType = {
         'Detached': ((sumByHousingType['Detached'] / totalHousingType) * 100).toFixed(2),
         'Semi-detached': ((sumByHousingType['Semi-detached'] / totalHousingType) * 100).toFixed(2),
-        'Terraced': ((sumByHousingType['Terraced'] / totalHousingType) * 100).toFixed(2)
+        'Terraced': ((sumByHousingType['Terraced'] / totalHousingType) * 100).toFixed(2),
+        'Flat': ((sumByHousingType['Flat'] / totalHousingType) * 100).toFixed(2),
+        'Caravan': ((sumByHousingType['Caravan'] / totalHousingType) * 100).toFixed(2)
       };
 
       // Tenure
@@ -1069,12 +1081,16 @@ function updateSummaryStats(outputAreas) {
           <li>White: ${sumByEthnicity['White']} (${percentageByEthnicity['White']}%)</li>
           <li>Asian: ${sumByEthnicity['Asian']} (${percentageByEthnicity['Asian']}%)</li>
           <li>Black: ${sumByEthnicity['Black']} (${percentageByEthnicity['Black']}%)</li>
+          <li>Mixed: ${sumByEthnicity['Mixed']} (${percentageByEthnicity['Mixed']}%)</li>
+          <li>Other: ${sumByEthnicity['Other']} (${percentageByEthnicity['Other']}%)</li>
         </ul>
         <h3>Housing Type</h3>
         <ul>
-          <li>Detached: ${sumByHousingType['Detached']} (${percentageByHousingType['Detached']}%)</li>
-          <li>Semi-detached: ${sumByHousingType['Semi-detached']} (${percentageByHousingType['Semi-detached']}%)</li>
-          <li>Terraced: ${sumByHousingType['Terraced']} (${percentageByHousingType['Terraced']}%)</li>
+               <li>Detached: ${sumByHousingType['Detached']} (${percentageByHousingType['Detached']}%)</li>
+               <li>Semi-detached: ${sumByHousingType['Semi-detached']} (${percentageByHousingType['Semi-detached']}%)</li>
+               <li>Terraced: ${sumByHousingType['Terraced']} (${percentageByHousingType['Terraced']}%)</li>
+               <li>Flat, maisonette or apartment: ${sumByHousingType['Flat']} (${percentageByHousingType['Flat']}%)</li>
+               <li>Caravan or other mobile structure: ${sumByHousingType['Caravan']} (${percentageByHousingType['Caravan']}%)</li>
         </ul>
         <h3>Tenure</h3>
         <ul>
@@ -1125,7 +1141,6 @@ function updateSummaryStats(outputAreas) {
   exportButton.addEventListener('click', () => exportSummaryStats(summaryText, isochroneType, isochroneValue, postcode, oaList));
 }
 
-
 function exportSummaryStats(summaryText, isochroneType, isochroneValue, postcode, oaList) {
   try {
     const exportWindow = window.open('', '_blank');
@@ -1135,21 +1150,49 @@ function exportSummaryStats(summaryText, isochroneType, isochroneValue, postcode
 
     const isochroneInfo = `
       <h2>Isochrone Information</h2>
-      <p>Postcode: ${postcode}</p>
-      <p>Isochrone Type: ${isochroneType}</p>
-      <p>Isochrone Value: ${isochroneValue} ${isochroneType === 'time' ? 'minutes' : 'miles'}</p>
+      <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+        <tr><th align="left">Postcode</th><td>${postcode}</td></tr>
+        <tr><th align="left">Isochrone Type</th><td>${isochroneType}</td></tr>
+        <tr><th align="left">Isochrone Value</th><td>${isochroneValue} ${isochroneType === 'time' ? 'minutes' : 'miles'}</td></tr>
+      </table>
     `;
 
     const outputAreasList = `
       <h2>List of Output Areas</h2>
-      <p>${oaList}</p>
+      <div style="word-break: break-all;">
+        ${oaList.replace(/,\s*/g, ';')}
+      </div>
     `;
 
-    exportWindow.document.write('<html><head><title>Exported Summary Stats</title></head><body>');
-    exportWindow.document.write(isochroneInfo);
-    exportWindow.document.write(summaryText);
-    exportWindow.document.write(outputAreasList);
-    exportWindow.document.write('</body></html>');
+    const tableContent = convertToTable(summaryText);
+
+    // Extract treemap data from summaryText
+    const treemapDataMatch = summaryText.match(/<h3>Treemap Data:<\/h3>\s*<pre>([\s\S]*?)<\/pre>/);
+    const treemapContent = treemapDataMatch 
+      ? `<h2>Treemap Data</h2><pre style="white-space: pre-wrap; word-break: break-all;">${treemapDataMatch[1]}</pre>`
+      : '<h2>Treemap Data</h2><p>No treemap data available</p>';
+
+    exportWindow.document.write(`
+      <html>
+        <head>
+          <title>Exported Summary Stats</title>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
+            table { margin-bottom: 20px; width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f0f0f0; }
+            pre { background-color: #f8f8f8; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+          </style>
+        </head>
+        <body>
+          ${isochroneInfo}
+          <h2>Summary Statistics</h2>
+          ${tableContent}
+          ${treemapContent}
+          ${outputAreasList}
+        </body>
+      </html>
+    `);
     exportWindow.document.close();
   } catch (error) {
     console.error('Error exporting summary stats:', error);
@@ -1157,6 +1200,58 @@ function exportSummaryStats(summaryText, isochroneType, isochroneValue, postcode
   }
 }
 
+function convertTreemapToTable(treemapData) {
+  let tableHtml = '<table class="treemap-table" border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">';
+  tableHtml += '<tr><th>Category</th><th>Value</th></tr>';
+
+  function addRowsRecursively(node, depth = 0) {
+    if (!node) return;
+
+    const paddingLeft = depth * 20;
+    
+    if (typeof node === 'object') {
+      Object.entries(node).forEach(([key, value]) => {
+        if (typeof value === 'object' && value !== null) {
+          tableHtml += `<tr><td style="padding-left: ${paddingLeft}px;"><strong>${key}</strong></td><td></td></tr>`;
+          addRowsRecursively(value, depth + 1);
+        } else {
+          tableHtml += `<tr><td style="padding-left: ${paddingLeft}px;">${key}</td><td>${value}</td></tr>`;
+        }
+      });
+    } else {
+      tableHtml += `<tr><td style="padding-left: ${paddingLeft}px;">Value</td><td>${node}</td></tr>`;
+    }
+  }
+
+  addRowsRecursively(treemapData);
+  tableHtml += '</table>';
+  return tableHtml;
+}
+
+function convertToTable(summaryText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(summaryText, 'text/html');
+  let tableHtml = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;"><tr><th>Metric</th><th>Value</th><th>Percentage</th></tr>';
+
+  doc.body.childNodes.forEach(node => {
+    if (node.nodeName === 'P') {
+      const [key, value] = node.textContent.split(':');
+      tableHtml += `<tr><th align="left">${key}</th><td>${value || ''}</td><td></td></tr>`;
+    } else if (node.nodeName === 'H3') {
+      tableHtml += `<tr><th colspan="3" align="left" style="background-color: #f0f0f0;">${node.textContent}</th></tr>`;
+    } else if (node.nodeName === 'UL') {
+      const items = Array.from(node.getElementsByTagName('li'));
+      items.forEach(item => {
+        const [key, valueWithPercentage] = item.textContent.split(':');
+        const [value, percentage] = valueWithPercentage.trim().split('(');
+        tableHtml += `<tr><td>${key}</td><td>${value.trim()}</td><td>${percentage ? percentage.replace(')', '') : ''}</td></tr>`;
+      });
+    }
+  });
+
+  tableHtml += '</table>';
+  return tableHtml;
+}
 
 function formatTreemapDataReadable(data, indent = '') {
   let result = '';
@@ -1178,4 +1273,33 @@ function formatTreemapDataReadable(data, indent = '') {
 function generateOAList(outputAreas) {
   const oaList = outputAreas.features.map(feature => feature.properties.OA21CD);
   return oaList.join('\n');
+}
+
+function convertToTable(summaryText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(summaryText, 'text/html');
+  let tableHtml = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">';
+  
+  // Add table header
+  tableHtml += '<tr><th>Metric</th><th>Value</th><th>Percentage</th></tr>';
+
+  doc.body.childNodes.forEach(node => {
+    if (node.nodeName === 'P') {
+      const [key, value] = node.textContent.split(':');
+      tableHtml += `<tr><th align="left">${key}</th><td>${value || ''}</td><td></td></tr>`;
+    } else if (node.nodeName === 'H3') {
+      tableHtml += `<tr><th colspan="3" align="left" style="background-color: #f0f0f0;">${node.textContent}</th></tr>`;
+    } else if (node.nodeName === 'UL') {
+      const items = Array.from(node.getElementsByTagName('li'));
+      items.forEach(item => {
+        const [key, valueWithPercentage] = item.textContent.split(':');
+        const [value, percentageWithParentheses] = valueWithPercentage.trim().split('(');
+        const percentage = percentageWithParentheses ? percentageWithParentheses.replace(')', '') : '';
+        tableHtml += `<tr><td>${key}</td><td>${value.trim()}</td><td>${percentage}</td></tr>`;
+      });
+    }
+  });
+
+  tableHtml += '</table>';
+  return tableHtml;
 }
