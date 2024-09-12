@@ -121,7 +121,7 @@ document.getElementById('update-map').addEventListener('click', () => {
 const searchInput = document.getElementById('search-input');
 
 
-// Modify the existing event listener for the search button - remove the button listeneer and make it key enter press
+// Modify the existing event listener for the search button - remove the button listener and make it key enter press
 
 searchInput.addEventListener('keypress', function(event) {
   if (event.key === 'Enter') {
@@ -313,44 +313,43 @@ function geocodeQuery(query) {
 }
 
 // end of modified geocodequery function
-
-
-
-
-
-
+// this is what needs modifying with the new files that are loaded
 
 
 function loadCensusFeatures() {
   Promise.all([
-      fetch('first_half.csv').then(response => response.text()),
-      fetch('second_half.csv').then(response => response.text())
+    fetch('first_part.csv').then(response => response.text()),
+    fetch('second_part.csv').then(response => response.text()),
+    fetch('third_part.csv').then(response => response.text())
   ])
-  .then(([data1, data2]) => {
-      const combinedData = data1 + '\n' + data2.split('\n').slice(1).join('\n');
-      const features = [];
-      // Normalize line endings and then split into lines
-      const lines = combinedData.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-      const headers = lines[0].split(',');
-      lines.slice(1).forEach(line => {
-          if (line.trim() === '') return; // Skip empty lines
-          const values = line.split(',');
-          const properties = {};
-          headers.forEach((header, index) => {
-              let value = values[index];
-              if (header === 'geography') {
-                  // Remove escape characters and double quotes from the geography column
-                  value = value.replace(/\\"/g, '');
-              }
-              properties[header] = value;
-          });
-          features.push(properties);
+  .then(([data1, data2, data3]) => {
+    const combinedData = data1 + '\n' + 
+      data2.split('\n').slice(1).join('\n') + '\n' + 
+      data3.split('\n').slice(1).join('\n');
+    const features = [];
+    // Normalize line endings and then split into lines
+    const lines = combinedData.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    const headers = lines[0].split(',');
+    lines.slice(1).forEach(line => {
+      if (line.trim() === '') return; // Skip empty lines
+      const values = line.split(',');
+      const properties = {};
+      headers.forEach((header, index) => {
+        let value = values[index];
+        if (header === 'geography') {
+          // Remove escape characters and double quotes from the geography column
+          value = value.replace(/\\"/g, '');
+        }
+        properties[header] = value;
       });
-      censusFeatures = features;
-      console.log('Census Features Sample:', censusFeatures.slice(0, 5));
+      features.push(properties);
+    });
+    censusFeatures = features;
+    console.log('Census Features Sample:', censusFeatures.slice(0, 5));
   })
   .catch(error => logError(error, 'Error loading census features.'));
 }
+
 
 function logError(error, message) {
     console.error(message, error);
@@ -936,6 +935,8 @@ function getContrastColor(hexcolor) {
   return (yiq >= 128) ? 'black' : 'white';
 }
 
+// Summary Stats need modifying after uploading new files in 3 parts (headers are different) //
+
 
 function updateSummaryStats(outputAreas) {
   console.log('updateSummaryStats called with:', outputAreas);
@@ -987,7 +988,7 @@ function updateSummaryStats(outputAreas) {
       };
       
 
-      const totalEthnicity = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|Total|All.usual.residents'] || 0), 0);
+      const totalEthnicity = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Ethnic.group|Total|All.usual.residents'] || 0), 0);  // ERROR, unsure this is the right field, as it's lower than the sum of ethnicity
 
       const percentageByEthnicity = {
         'White': ((sumByEthnicity['White'] / totalEthnicity) * 100).toFixed(2),
@@ -1003,11 +1004,14 @@ function updateSummaryStats(outputAreas) {
         'Semi-detached': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Semi.detached'] || 0), 0),
         'Terraced': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Terraced'] || 0), 0),
       // Add the missing categories
-        'Flat': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Flat|maisonette.or.apartment'] || 0), 0),
-        'Caravan': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Caravan.or.other.mobile.or.temporary.structure'] || 0), 0)
+        'Flat': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|In.a.purpose.built.block.of.flats.or.tenement'] || 0), 0),
+        'In Commercial Building': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|In.a.commercial.building|for.example|in.an.office.building|hotel.or.over.a.shop'] || 0), 0),
+        'Converted or shared house': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Part.of.a.converted.or.shared.house|including.bedsits'] || 0), 0),
+        'Other converted building': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Part.of.another.converted.building|for.example|former.school|church.or.warehouse'] || 0), 0),
+        'Caravan': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|A.caravan.or.other.mobile.or.temporary.structure'] || 0), 0)
       };
 
-      const totalHousingType = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Total|All.households'] || 0), 0);
+      const totalHousingType = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Accommodation.type|Total|All.households'] || 0), 0); 
 
     // Calculate percentages
       const percentageByHousingType = {
@@ -1015,7 +1019,10 @@ function updateSummaryStats(outputAreas) {
         'Semi-detached': ((sumByHousingType['Semi-detached'] / totalHousingType) * 100).toFixed(2),
         'Terraced': ((sumByHousingType['Terraced'] / totalHousingType) * 100).toFixed(2),
         'Flat': ((sumByHousingType['Flat'] / totalHousingType) * 100).toFixed(2),
-        'Caravan': ((sumByHousingType['Caravan'] / totalHousingType) * 100).toFixed(2)
+        'In Commercial Building': ((sumByHousingType['In Commercial Building'] / totalHousingType) * 100).toFixed(2),
+        'Converted or shared house': ((sumByHousingType['Converted or shared house'] / totalHousingType) * 100).toFixed(2),
+        'Other converted building': ((sumByHousingType['Other converted building'] / totalHousingType) * 100).toFixed(2),
+        'Caravan': ((sumByHousingType['Caravan'] / totalHousingType) * 100).toFixed(2),
       };
 
       // Tenure
@@ -1023,7 +1030,8 @@ function updateSummaryStats(outputAreas) {
         'Owned': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Owned'] || 0), 0),
         'Social Rented': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Social.rented'] || 0), 0),
         'Private Rented': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Private.rented'] || 0), 0),
-        'Lives Rent Free': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Lives.rent.free'] || 0), 0)
+        'Lives Rent Free': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Lives.rent.free'] || 0), 0),
+        'Shared Ownership': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Shared.ownership'] || 0), 0),
       };
 
       const totalTenure = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Tenure.of.household|Total|All.households'] || 0), 0);
@@ -1032,8 +1040,32 @@ function updateSummaryStats(outputAreas) {
         'Owned': ((sumByTenure['Owned'] / totalTenure) * 100).toFixed(2),
         'Social Rented': ((sumByTenure['Social Rented'] / totalTenure) * 100).toFixed(2),
         'Private Rented': ((sumByTenure['Private Rented'] / totalTenure) * 100).toFixed(2),
-        'Lives Rent Free': ((sumByTenure['Lives Rent Free'] / totalTenure) * 100).toFixed(2)
+        'Lives Rent Free': ((sumByTenure['Lives Rent Free'] / totalTenure) * 100).toFixed(2),
+        'Shared Ownership': ((sumByTenure['Shared Ownership'] / totalTenure) * 100).toFixed(2)
       };
+
+      // Religion 
+
+      const sumByReligion = {
+        'No religion': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Religion|No.religion'] || 0), 0),
+        'Christian': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Religion|Christian'] || 0), 0),
+        'Buddhist': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Religion|Buddhist'] || 0), 0),
+        'Hindu': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Religion|Hindu'] || 0), 0),
+        'Jewish': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Religion|Jewish'] || 0), 0),
+        'Muslim': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Religion|Muslim'] || 0), 0),
+        'Sikh': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Religion|Sikh'] || 0), 0),
+        'Other religion': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Religion|Other.religion'] || 0), 0),
+        'Not answered': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Religion|Not.answered'] || 0), 0)
+      };
+
+      const totalReligion = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Religion|Total|All.usual.residents'] || 0), 0);
+
+      // Calculate percentages for Religion (note, Claude gave me a different method of calculation, seems more efficient)
+      const percentageByReligion = Object.fromEntries(
+        Object.entries(sumByReligion)
+          .filter(([key]) => key !== 'Total')
+          .map(([key, value]) => [key, ((value / totalReligion) * 100).toFixed(2)])
+      );
 
       // Travel to Work
       const sumByTravelToWork = {
@@ -1051,14 +1083,24 @@ function updateSummaryStats(outputAreas) {
       // Qualifications
       const sumByQualification = {
         'No Qualifications': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|No.qualifications'] || 0), 0),
-        'Level 4 Qualifications and Above': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|Level.4.qualifications.and.above'] || 0), 0)
+        'Level 1 and Entry': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|Level.1.and.entry.level.qualifications'] || 0), 0),
+        'Level 2 Qualifications': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|Level.2.qualifications'] || 0), 0),
+        'Apprenticeship': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|Apprenticeship'] || 0), 0),
+        'Level 3 Qualifications': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|Level.3.qualifications'] || 0), 0),
+        'Level 4 Qualifications and Above': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|Level.4.qualifications.and.above'] || 0), 0),
+        'Other Qualifications': filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|Other.qualifications'] || 0), 0)
       };
 
       const totalQualification = filteredFeatures.reduce((sum, feature) => sum + parseFloat(feature['Highest.level.of.qualification|Total|All.usual.residents.aged.16.years.and.over'] || 0), 0);
 
       const percentageByQualification = {
         'No Qualifications': ((sumByQualification['No Qualifications'] / totalQualification) * 100).toFixed(2),
-        'Level 4 Qualifications and Above': ((sumByQualification['Level 4 Qualifications and Above'] / totalQualification) * 100).toFixed(2)
+        'Level 1 and Entry': ((sumByQualification['Level 1 and Entry'] / totalQualification) * 100).toFixed(2),
+        'Level 2 Qualifications': ((sumByQualification['Level 2 Qualifications'] / totalQualification) * 100).toFixed(2),
+        'Apprenticeship': ((sumByQualification['Apprenticeship'] / totalQualification) * 100).toFixed(2),
+        'Level 3 Qualifications': ((sumByQualification['Level 3 Qualifications'] / totalQualification) * 100).toFixed(2),
+        'Level 4 Qualifications and Above': ((sumByQualification['Level 4 Qualifications and Above'] / totalQualification) * 100).toFixed(2),
+        'Other Qualifications': ((sumByQualification['Other Qualifications'] / totalQualification) * 100).toFixed(2)
       };
 
       console.log('Statistics calculated successfully');
@@ -1086,11 +1128,14 @@ function updateSummaryStats(outputAreas) {
         </ul>
         <h3>Housing Type</h3>
         <ul>
-               <li>Detached: ${sumByHousingType['Detached']} (${percentageByHousingType['Detached']}%)</li>
-               <li>Semi-detached: ${sumByHousingType['Semi-detached']} (${percentageByHousingType['Semi-detached']}%)</li>
-               <li>Terraced: ${sumByHousingType['Terraced']} (${percentageByHousingType['Terraced']}%)</li>
-               <li>Flat, maisonette or apartment: ${sumByHousingType['Flat']} (${percentageByHousingType['Flat']}%)</li>
-               <li>Caravan or other mobile structure: ${sumByHousingType['Caravan']} (${percentageByHousingType['Caravan']}%)</li>
+                  <li>Detached: ${sumByHousingType['Detached']} (${percentageByHousingType['Detached']}%)</li>
+                  <li>Semi-detached: ${sumByHousingType['Semi-detached']} (${percentageByHousingType['Semi-detached']}%)</li>
+                  <li>Terraced: ${sumByHousingType['Terraced']} (${percentageByHousingType['Terraced']}%)</li>
+                  <li>Flat, maisonette or apartment: ${sumByHousingType['Flat']} (${percentageByHousingType['Flat']}%)</li>
+                  <li>In commercial building: ${sumByHousingType['In Commercial Building']} (${percentageByHousingType['In Commercial Building']}%)</li>
+                  <li>Converted or shared house: ${sumByHousingType['Converted or shared house']} (${percentageByHousingType['Converted or shared house']}%)</li>
+                  <li>Other converted building: ${sumByHousingType['Other converted building']} (${percentageByHousingType['Other converted building']}%)</li>
+                  <li>Caravan or other mobile structure: ${sumByHousingType['Caravan']} (${percentageByHousingType['Caravan']}%)</li>
         </ul>
         <h3>Tenure</h3>
         <ul>
@@ -1098,6 +1143,19 @@ function updateSummaryStats(outputAreas) {
           <li>Social Rented: ${sumByTenure['Social Rented']} (${percentageByTenure['Social Rented']}%)</li>
           <li>Private Rented: ${sumByTenure['Private Rented']} (${percentageByTenure['Private Rented']}%)</li>
           <li>Lives Rent Free: ${sumByTenure['Lives Rent Free']} (${percentageByTenure['Lives Rent Free']}%)</li>
+          <li>Shared Ownership: ${sumByTenure['Shared Ownership']} (${percentageByTenure['Shared Ownership']}%)</li>
+        </ul>
+        <h3>Religion</h3>
+        <ul>
+          <li>No religion: ${sumByReligion['No religion']} (${percentageByReligion['No religion']}%)</li>
+          <li>Christian: ${sumByReligion['Christian']} (${percentageByReligion['Christian']}%)</li>
+          <li>Buddhist: ${sumByReligion['Buddhist']} (${percentageByReligion['Buddhist']}%)</li>
+          <li>Hindu: ${sumByReligion['Hindu']} (${percentageByReligion['Hindu']}%)</li>
+          <li>Jewish: ${sumByReligion['Jewish']} (${percentageByReligion['Jewish']}%)</li>
+          <li>Muslim: ${sumByReligion['Muslim']} (${percentageByReligion['Muslim']}%)</li>
+          <li>Sikh: ${sumByReligion['Sikh']} (${percentageByReligion['Sikh']}%)</li>
+          <li>Other religion: ${sumByReligion['Other religion']} (${percentageByReligion['Other religion']}%)</li>
+          <li>Not answered: ${sumByReligion['Not answered']} (${percentageByReligion['Not answered']}%)</li>
         </ul>
         <h3>Travel to Work</h3>
         <ul>
@@ -1106,8 +1164,13 @@ function updateSummaryStats(outputAreas) {
         </ul>
         <h3>Qualifications</h3>
         <ul>
-          <li>No Qualifications: ${sumByQualification['No Qualifications']} (${percentageByQualification['No Qualifications']}%)</li>
-          <li>Level 4 Qualifications and Above: ${sumByQualification['Level 4 Qualifications and Above']} (${percentageByQualification['Level 4 Qualifications and Above']}%)</li>
+         <li>No Qualifications: ${sumByQualification['No Qualifications']} (${percentageByQualification['No Qualifications']}%)</li>
+        <li>Level 1 and Entry: ${sumByQualification['Level 1 and Entry']} (${percentageByQualification['Level 1 and Entry']}%)</li>
+        <li>Level 2 Qualifications: ${sumByQualification['Level 2 Qualifications']} (${percentageByQualification['Level 2 Qualifications']}%)</li>
+        <li>Apprenticeship: ${sumByQualification['Apprenticeship']} (${percentageByQualification['Apprenticeship']}%)</li>
+        <li>Level 3 Qualifications: ${sumByQualification['Level 3 Qualifications']} (${percentageByQualification['Level 3 Qualifications']}%)</li>
+        <li>Level 4 Qualifications and Above: ${sumByQualification['Level 4 Qualifications and Above']} (${percentageByQualification['Level 4 Qualifications and Above']}%)</li>
+        <li>Other Qualifications: ${sumByQualification['Other Qualifications']} (${percentageByQualification['Other Qualifications']}%)</li>
         </ul>
         <h3>Treemap Data:</h3>
         <pre>${readableTreemapData}</pre>
@@ -1228,12 +1291,33 @@ function convertTreemapToTable(treemapData) {
   return tableHtml;
 }
 
+
 function convertToTable(summaryText) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(summaryText, 'text/html');
-  let tableHtml = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;"><tr><th>Metric</th><th>Value</th><th>Percentage</th></tr>';
+  let tableHtml = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">';
+  
+  // Add table header
+  tableHtml += '<tr><th>Metric</th><th>Value</th><th>Percentage</th></tr>';
 
-  doc.body.childNodes.forEach(node => {
+  let skipTreemapData = false;
+
+  for (let i = 0; i < doc.body.childNodes.length; i++) {
+    const node = doc.body.childNodes[i];
+
+    if (node.nodeName === 'H3' && node.textContent.trim().toLowerCase() === 'treemap data:') {
+      skipTreemapData = true;
+      continue;
+    }
+
+    if (skipTreemapData) {
+      if (node.nodeName === 'H3') {
+        skipTreemapData = false;
+      } else {
+        continue;
+      }
+    }
+
     if (node.nodeName === 'P') {
       const [key, value] = node.textContent.split(':');
       tableHtml += `<tr><th align="left">${key}</th><td>${value || ''}</td><td></td></tr>`;
@@ -1243,15 +1327,19 @@ function convertToTable(summaryText) {
       const items = Array.from(node.getElementsByTagName('li'));
       items.forEach(item => {
         const [key, valueWithPercentage] = item.textContent.split(':');
-        const [value, percentage] = valueWithPercentage.trim().split('(');
-        tableHtml += `<tr><td>${key}</td><td>${value.trim()}</td><td>${percentage ? percentage.replace(')', '') : ''}</td></tr>`;
+        const [value, percentageWithParentheses] = valueWithPercentage.trim().split('(');
+        const percentage = percentageWithParentheses ? percentageWithParentheses.replace(')', '') : '';
+        tableHtml += `<tr><td>${key}</td><td>${value.trim()}</td><td>${percentage}</td></tr>`;
       });
     }
-  });
+  }
 
   tableHtml += '</table>';
   return tableHtml;
 }
+
+
+
 
 function formatTreemapDataReadable(data, indent = '') {
   let result = '';
@@ -1275,31 +1363,4 @@ function generateOAList(outputAreas) {
   return oaList.join('\n');
 }
 
-function convertToTable(summaryText) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(summaryText, 'text/html');
-  let tableHtml = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">';
-  
-  // Add table header
-  tableHtml += '<tr><th>Metric</th><th>Value</th><th>Percentage</th></tr>';
 
-  doc.body.childNodes.forEach(node => {
-    if (node.nodeName === 'P') {
-      const [key, value] = node.textContent.split(':');
-      tableHtml += `<tr><th align="left">${key}</th><td>${value || ''}</td><td></td></tr>`;
-    } else if (node.nodeName === 'H3') {
-      tableHtml += `<tr><th colspan="3" align="left" style="background-color: #f0f0f0;">${node.textContent}</th></tr>`;
-    } else if (node.nodeName === 'UL') {
-      const items = Array.from(node.getElementsByTagName('li'));
-      items.forEach(item => {
-        const [key, valueWithPercentage] = item.textContent.split(':');
-        const [value, percentageWithParentheses] = valueWithPercentage.trim().split('(');
-        const percentage = percentageWithParentheses ? percentageWithParentheses.replace(')', '') : '';
-        tableHtml += `<tr><td>${key}</td><td>${value.trim()}</td><td>${percentage}</td></tr>`;
-      });
-    }
-  });
-
-  tableHtml += '</table>';
-  return tableHtml;
-}
